@@ -51,13 +51,13 @@ export default function Layout({ menu, halaman, setHalaman, children }) {
   return (
     <div className="min-h-screen lg:flex">
       {/* Sidebar desktop */}
-      <aside className="hidden w-64 shrink-0 border-r border-[var(--line)] bg-[var(--card)] py-6 lg:block">
+      <aside className="hidden w-64 shrink-0 print:hidden! border-r border-[var(--line)] bg-[var(--card)] py-6 lg:block">
         <Merek />
         {daftar}
       </aside>
 
       {/* Header HP */}
-      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-[var(--line)] bg-[var(--card)] px-4 py-3 lg:hidden">
+      <header className="sticky top-0 z-20 print:hidden! flex items-center justify-between border-b border-[var(--line)] bg-[var(--card)] px-4 py-3 lg:hidden">
         <Merek />
         <button
           type="button"
@@ -90,8 +90,8 @@ export default function Layout({ menu, halaman, setHalaman, children }) {
         </div>
       )}
 
-      <main className="min-w-0 flex-1 px-4 py-6 sm:px-8 lg:px-10 lg:py-8">
-        <div className="mx-auto max-w-5xl">{children}</div>
+      <main className="min-w-0 flex-1 px-4 py-6 sm:px-8 lg:px-10 lg:py-8 print:p-0">
+        <div className="mx-auto max-w-5xl print:max-w-none print:m-0">{children}</div>
       </main>
     </div>
   )
