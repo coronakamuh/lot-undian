@@ -1,17 +1,29 @@
-import { ClipboardList } from 'lucide-react'
+import { useState } from 'react'
+import { Users, Ticket, BookOpen, Settings } from 'lucide-react'
+import Layout from './components/Layout.jsx'
+import Nama from './pages/Nama.jsx'
+import CetakLot from './pages/CetakLot.jsx'
+import CetakIndex from './pages/CetakIndex.jsx'
+import Pengaturan from './pages/Pengaturan.jsx'
+import { useTema } from './lib/theme.js'
+
+const MENU = [
+  { id: 'nama', label: 'Nama', ikon: Users },
+  { id: 'lot', label: 'Cetak Lot', ikon: Ticket },
+  { id: 'index', label: 'Cetak Index', ikon: BookOpen },
+  { id: 'pengaturan', label: 'Pengaturan', ikon: Settings },
+]
 
 export default function App() {
+  const [halaman, setHalaman] = useState('nama')
+  const [tema, setTema] = useTema()
+
   return (
-    <main className="min-h-screen flex items-center justify-center p-4">
-      <section className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-sm">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-[#1e3a5f] text-white">
-          <ClipboardList size={24} />
-        </div>
-        <h1 className="text-xl font-semibold text-[#1e3a5f]">Lot Undian</h1>
-        <p className="mt-2 text-sm text-gray-500">
-          Fondasi project siap. Fitur akan ditambahkan bertahap.
-        </p>
-      </section>
-    </main>
+    <Layout menu={MENU} halaman={halaman} setHalaman={setHalaman}>
+      {halaman === 'nama' && <Nama />}
+      {halaman === 'lot' && <CetakLot />}
+      {halaman === 'index' && <CetakIndex />}
+      {halaman === 'pengaturan' && <Pengaturan tema={tema} setTema={setTema} />}
+    </Layout>
   )
 }
