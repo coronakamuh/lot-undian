@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { BookOpen, Printer, Loader2 } from 'lucide-react'
+import { BookOpen, Download, Loader2 } from 'lucide-react'
 import PageTitle from '../components/PageTitle.jsx'
 import EmptyState from '../components/EmptyState.jsx'
 import IndexSheet, { BLOK_PER_BUKU, KOLOM_PER_BLOK, jumlahHalamanBaris } from '../components/IndexSheet.jsx'
 import { ambilNama, pesanError } from '../lib/namaApi.js'
+import { unduhIndexPdf } from '../lib/indexPdf.js'
 
 const pilihan =
   'rounded-xl border border-[var(--line)] bg-[var(--card)] px-3 py-2.5 text-sm text-[var(--text)] outline-none focus:border-[var(--navy)]'
@@ -14,6 +15,8 @@ export default function CetakIndex() {
   const [gagal, setGagal] = useState('')
   const [buku, setBuku] = useState(0)
   const [blok, setBlok] = useState('0')
+  const [mengunduh, setMengunduh] = useState(false)
+  const [galatUnduh, setGalatUnduh] = useState('')
 
   const muat = async () => {
     setMemuat(true)
@@ -33,6 +36,18 @@ export default function CetakIndex() {
   }, [])
 
   const semua = blok === 'semua'
+
+  const unduh = async () => {
+    setMengunduh(true)
+    setGalatUnduh('')
+    try {
+      await unduhIndexPdf({ daftar, buku, blok: semua ? null : Number(blok) })
+    } catch {
+      setGalatUnduh('Gagal membuat file PDF. Coba lagi.')
+    } finally {
+      setMengunduh(false)
+    }
+  }
   const halamanBaris = jumlahHalamanBaris(daftar.length)
   const totalHalaman = (semua ? BLOK_PER_BUKU : 1) * halamanBaris
   const nomorAwalBuku = buku * BLOK_PER_BUKU * KOLOM_PER_BLOK + 1
@@ -91,17 +106,24 @@ export default function CetakIndex() {
               </label>
               <button
                 type="button"
-                onClick={() => window.print()}
-                className="ml-auto flex items-center gap-2 rounded-xl bg-[var(--navy)] px-4 py-2.5 text-sm font-medium text-[var(--on-navy)]"
+                onClick={unduh}
+                disabled={mengunduh}
+                className="ml-auto flex items-center gap-2 rounded-xl bg-[var(--navy)] px-4 py-2.5 text-sm font-medium text-[var(--on-navy)] disabled:opacity-60"
               >
-                <Printer size={16} /> Cetak
+                {mengunduh ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                Unduh PDF
               </button>
             </div>
             <p className="mt-3 text-sm text-[var(--muted)]">
-              {daftar.length} nama, {totalHalaman} halaman. Cetak di kertas A4 portrait, skala 100% (Actual size),
-              tanpa margin tambahan.
+              {daftar.length} nama, {totalHalaman} halaman. File PDF berukuran A4 portrait; saat dicetak dari file, pilih
+              skala 100% (Actual size).
             </p>
           </div>
+          {galatUnduh && (
+            <p role="alert" className="mb-4 rounded-xl bg-red-50 px-4 py-2.5 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+              {galatUnduh}
+            </p>
+          )}
           <div className="overflow-x-auto rounded-2xl border border-[var(--line)] bg-white p-2 print:overflow-visible print:rounded-none print:border-0 print:p-0">
             <IndexSheet daftar={daftar} buku={buku} blok={semua ? null : Number(blok)} />
           </div>
