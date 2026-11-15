@@ -38,6 +38,18 @@ export async function hapusNama(id) {
   if (error) throw error
 }
 
+// Simpan urutan baru: hanya baris yang urutannya berubah.
+export async function simpanUrutan(baris) {
+  if (baris.length === 0) return
+  const { error } = await supabase
+    .from('lot_nama')
+    .upsert(
+      baris.map(({ id, nama, urutan }) => ({ id, nama, urutan })),
+      { onConflict: 'id' },
+    )
+  if (error) throw error
+}
+
 export function pesanError(error) {
   if (error?.code === '23505') return 'Nama itu sudah ada di daftar.'
   return 'Terjadi kesalahan saat menghubungi database. Coba lagi.'
