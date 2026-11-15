@@ -4,6 +4,8 @@
   background: #fff;
   color: #000;
   width: 188mm;
+  margin: 0 auto;
+  font-family: Aptos, 'Segoe UI', Calibri, Inter, Arial, sans-serif;
 }
 .lot-baris {
   display: grid;
@@ -19,6 +21,7 @@
   border: 3px double #000;
   border-bottom: 0;
   padding: 0 3px;
+  font-family: 'Aptos Narrow', 'Arial Narrow', Aptos, Inter, Arial, sans-serif;
   font-size: 13pt;
   font-weight: 700;
   line-height: 17pt;
@@ -39,7 +42,7 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .lot-pemisah-halaman {
   break-after: page;
@@ -52,6 +55,12 @@
 }
 
 @media print {
+  .lot-kertas {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    height: 286mm;
+  }
   html, body {
     background: #fff !important;
   }

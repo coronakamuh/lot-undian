@@ -24,7 +24,7 @@ function Halaman({ daftar, mulaiBaris, nomorAwal, pemisah }) {
             <td>No.</td>
             <td>Nama</td>
             {kolom.map((n) => (
-              <td key={n} />
+              <td key={n} className="idx-garis" />
             ))}
           </tr>
           <tr className="idx-nomor">

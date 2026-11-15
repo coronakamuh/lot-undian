@@ -26,12 +26,12 @@ export default function LotSheet({ daftar }) {
   return (
     <div className="lot-halaman">
       {halaman.map((barisHalaman, h) => (
-        <div key={h} className={h < halaman.length - 1 ? 'lot-pemisah-halaman' : ''}>
+        <div key={h} className={'lot-kertas' + (h < halaman.length - 1 ? ' lot-pemisah-halaman' : '')}>
           {barisHalaman.map((sel, b) => (
             <div key={b} className="lot-baris">
               {sel.map((s, k) => (
                 <div key={k} className="lot-sel">
-                  <div className="lot-nomor">{s.nomor}</div>
+                  <div className="lot-nomor">{s.nomor ? `${s.nomor}.` : ''}</div>
                   <div className="lot-nama">{s.nama}</div>
                 </div>
               ))}
