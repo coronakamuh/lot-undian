@@ -139,7 +139,7 @@ export default function Nama() {
   }
 
   return (
-    <>
+    <div className={pilih.size > 0 ? 'pb-28' : ''}>
       <PageTitle judul="Nama" deskripsi="Daftar induk nama yang dipakai untuk lot dan buku index." />
 
       <form onSubmit={tambah} className={`${kartu} mb-4 flex gap-2 p-4`}>
@@ -209,7 +209,7 @@ export default function Nama() {
           </div>
 
           {pilih.size > 0 && (
-            <div className="flex flex-wrap items-center gap-2 border-b border-[var(--line)] bg-[var(--navy-soft)] px-4 py-2.5 text-sm">
+            <div className="fixed inset-x-3 bottom-3 z-20 mx-auto flex max-w-3xl flex-wrap items-center gap-2 rounded-2xl border border-[var(--line)] bg-[var(--card)] px-4 py-3 text-sm shadow-xl">
               <span className="mr-1 font-medium text-[var(--navy)]">{pilih.size} dipilih</span>
               <button type="button" disabled={mengatur} onClick={() => terapkanUrutan(geser(daftar, pilih, -1))} className={aksi}>
                 <ArrowUp size={14} /> Naik
@@ -296,6 +296,6 @@ export default function Nama() {
           )}
         </section>
       )}
-    </>
+    </div>
   )
 }
