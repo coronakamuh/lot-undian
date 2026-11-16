@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Users, Plus, Pencil, Trash2, Check, X, Search, Loader2, ArrowUp, ArrowDown, MoveRight } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Users, Plus, Pencil, Trash2, Check, X, Search, Loader2, ArrowUp, ArrowDown, MoveRight, Undo2, Redo2, Cloud } from 'lucide-react'
 import PageTitle from '../components/PageTitle.jsx'
 import EmptyState from '../components/EmptyState.jsx'
-import { ambilNama, tambahNama, ubahNama, hapusNama, simpanUrutan, pesanError } from '../lib/namaApi.js'
+import { ambilNama, tambahNama, ubahNama, hapusNama, hapusBanyak, simpanUrutan, pesanError } from '../lib/namaApi.js'
 import { geser, pindahKe, beriUrutan } from '../lib/urutan.js'
 
 const kartu = 'rounded-2xl border border-[var(--line)] bg-[var(--card)] shadow-sm'
@@ -25,13 +25,26 @@ export default function Nama() {
   const [editNilai, setEditNilai] = useState('')
   const [pilih, setPilih] = useState(() => new Set())
   const [keNomor, setKeNomor] = useState('')
-  const [mengatur, setMengatur] = useState(false)
+  const [riwayat, setRiwayat] = useState([]) // untuk Urungkan
+  const [maju, setMaju] = useState([]) // untuk Ulangi
+  const [status, setStatus] = useState('') // '', 'menyimpan', 'tersimpan', 'gagal'
+  const daftarRef = useRef([])
+  const serverRef = useRef([]) // keadaan terakhir yang diketahui ada di database
+  const timerRef = useRef(null)
+  const sedangSimpan = useRef(false)
+  const perluLagi = useRef(false)
+  daftarRef.current = daftar
 
   const muat = async () => {
     setMemuat(true)
     setGagal('')
     try {
-      setDaftar(await ambilNama())
+      const data = await ambilNama()
+      serverRef.current = data
+      daftarRef.current = data
+      setDaftar(data)
+      setRiwayat([])
+      setMaju([])
     } catch (e) {
       setGagal(pesanError(e))
     } finally {
@@ -48,15 +61,82 @@ export default function Nama() {
     return q ? daftar.filter((d) => d.nama.toLowerCase().includes(q)) : daftar
   }, [daftar, cari])
 
+  const catat = () => {
+    setRiwayat((r) => [...r.slice(-49), daftarRef.current])
+    setMaju([])
+  }
+
+  const setLokal = (list) => {
+    daftarRef.current = list
+    setDaftar(list)
+  }
+
+  // Samakan database dengan daftar terbaru (hapus yang hilang, simpan yang baru/berubah).
+  const sinkron = async (target) => {
+    const server = new Map(serverRef.current.map((d) => [d.id, d]))
+    const idTarget = new Set(target.map((d) => d.id))
+    const hapusIds = [...server.keys()].filter((id) => !idTarget.has(id))
+    const simpan = target.filter((d) => {
+      const x = server.get(d.id)
+      return !x || x.nama !== d.nama || x.urutan !== d.urutan
+    })
+    if (hapusIds.length) await hapusBanyak(hapusIds)
+    if (simpan.length) await simpanUrutan(simpan)
+    serverRef.current = target
+  }
+
+  const simpanSekarang = useCallback(async () => {
+    if (sedangSimpan.current) {
+      perluLagi.current = true
+      return
+    }
+    sedangSimpan.current = true
+    setStatus('menyimpan')
+    try {
+      do {
+        perluLagi.current = false
+        await sinkron(daftarRef.current)
+      } while (perluLagi.current)
+      setStatus('tersimpan')
+    } catch (err) {
+      setStatus('gagal')
+      setPesan(pesanError(err))
+    } finally {
+      sedangSimpan.current = false
+    }
+  }, [])
+
+  const jadwalkanSimpan = () => {
+    clearTimeout(timerRef.current)
+    setStatus('menyimpan')
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null
+      simpanSekarang()
+    }, 400)
+  }
+
+  // Jangan kehilangan perubahan yang belum sempat tersimpan saat pindah halaman.
+  useEffect(
+    () => () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+        simpanSekarang()
+      }
+    },
+    [simpanSekarang],
+  )
+
   const tambah = async (e) => {
     e.preventDefault()
     if (!baru.trim() || menyimpan) return
     setMenyimpan(true)
     setPesan('')
     try {
-      const urutan = daftar.reduce((m, d) => Math.max(m, d.urutan), 0) + 1
+      const urutan = daftarRef.current.reduce((m, d) => Math.max(m, d.urutan), 0) + 1
       const item = await tambahNama(baru, urutan)
-      setDaftar((d) => [...d, item])
+      catat()
+      serverRef.current = [...serverRef.current, item]
+      setLokal([...daftarRef.current, item])
       setBaru('')
     } catch (err) {
       setPesan(pesanError(err))
@@ -71,7 +151,9 @@ export default function Nama() {
     setPesan('')
     try {
       const item = await ubahNama(id, editNilai)
-      setDaftar((d) => d.map((x) => (x.id === id ? item : x)))
+      catat()
+      serverRef.current = serverRef.current.map((x) => (x.id === id ? { ...x, nama: item.nama } : x))
+      setLokal(daftarRef.current.map((x) => (x.id === id ? { ...x, nama: item.nama } : x)))
       setEditId(null)
     } catch (err) {
       setPesan(pesanError(err))
@@ -80,24 +162,59 @@ export default function Nama() {
     }
   }
 
-  const terapkanUrutan = async (baru) => {
-    if (mengatur) return
-    const lama = daftar
-    const bernomor = beriUrutan(baru)
-    const berubah = bernomor.filter((d, i) => lama.find((x) => x.id === d.id)?.urutan !== d.urutan)
-    if (berubah.length === 0) return
-    setMengatur(true)
+  const terapkanUrutan = (baruList) => {
+    const bernomor = beriUrutan(baruList)
+    const sama = bernomor.every((d, i) => d.id === daftarRef.current[i]?.id)
+    if (sama) return
     setPesan('')
-    setDaftar(bernomor)
-    try {
-      await simpanUrutan(berubah)
-    } catch (err) {
-      setDaftar(lama)
-      setPesan(pesanError(err))
-    } finally {
-      setMengatur(false)
-    }
+    catat()
+    setLokal(bernomor)
+    jadwalkanSimpan()
   }
+
+  const pulihkan = (target) => {
+    setLokal(target)
+    const ada = new Set(target.map((d) => d.id))
+    setPilih((p) => new Set([...p].filter((id) => ada.has(id))))
+    setEditId(null)
+    setPesan('')
+    jadwalkanSimpan()
+  }
+
+  const urungkan = () => {
+    if (riwayat.length === 0) return
+    const prev = riwayat[riwayat.length - 1]
+    setRiwayat((r) => r.slice(0, -1))
+    setMaju((m) => [...m, daftarRef.current])
+    pulihkan(prev)
+  }
+
+  const ulangi = () => {
+    if (maju.length === 0) return
+    const next = maju[maju.length - 1]
+    setMaju((m) => m.slice(0, -1))
+    setRiwayat((r) => [...r, daftarRef.current])
+    pulihkan(next)
+  }
+
+  // Ctrl/Cmd+Z = urungkan, Ctrl+Y atau Ctrl+Shift+Z = ulangi (bukan saat mengetik).
+  useEffect(() => {
+    const onKey = (e) => {
+      const el = e.target
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) return
+      if (!(e.ctrlKey || e.metaKey)) return
+      const k = e.key.toLowerCase()
+      if (k === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        urungkan()
+      } else if (k === 'y' || (k === 'z' && e.shiftKey)) {
+        e.preventDefault()
+        ulangi()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
 
   const alihkan = (id) =>
     setPilih((p) => {
@@ -118,7 +235,7 @@ export default function Nama() {
     e.preventDefault()
     const nomor = Number(keNomor)
     if (!Number.isFinite(nomor) || nomor < 1) return
-    terapkanUrutan(pindahKe(daftar, pilih, nomor))
+    terapkanUrutan(pindahKe(daftarRef.current, pilih, nomor))
     setKeNomor('')
   }
 
@@ -127,7 +244,9 @@ export default function Nama() {
     setPesan('')
     try {
       await hapusNama(item.id)
-      setDaftar((d) => d.filter((x) => x.id !== item.id))
+      catat()
+      serverRef.current = serverRef.current.filter((x) => x.id !== item.id)
+      setLokal(daftarRef.current.filter((x) => x.id !== item.id))
       setPilih((p) => {
         const n = new Set(p)
         n.delete(item.id)
@@ -137,6 +256,21 @@ export default function Nama() {
       setPesan(pesanError(err))
     }
   }
+
+  const infoStatus =
+    status === 'menyimpan' ? (
+      <span className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
+        <Loader2 size={14} className="animate-spin" /> Menyimpan…
+      </span>
+    ) : status === 'tersimpan' ? (
+      <span className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
+        <Cloud size={14} /> Tersimpan
+      </span>
+    ) : status === 'gagal' ? (
+      <button type="button" onClick={simpanSekarang} className="text-sm text-red-600 hover:underline dark:text-red-400">
+        Gagal menyimpan, coba lagi
+      </button>
+    ) : null
 
   return (
     <div className={pilih.size > 0 ? 'pb-28' : ''}>
@@ -201,6 +335,13 @@ export default function Nama() {
               />
             </div>
             <div className="flex items-center gap-3">
+              {infoStatus}
+              <button type="button" onClick={urungkan} disabled={riwayat.length === 0} className={aksi} title="Urungkan (Ctrl+Z)">
+                <Undo2 size={14} /> Urungkan
+              </button>
+              <button type="button" onClick={ulangi} disabled={maju.length === 0} className={aksi} title="Ulangi (Ctrl+Y)">
+                <Redo2 size={14} /> Ulangi
+              </button>
               <button type="button" onClick={pilihSemuaTampil} className="text-sm text-[var(--navy)] hover:underline">
                 {tampil.length > 0 && tampil.every((d) => pilih.has(d.id)) ? 'Lepas semua' : 'Pilih semua'}
               </button>
@@ -211,10 +352,10 @@ export default function Nama() {
           {pilih.size > 0 && (
             <div className="fixed inset-x-3 bottom-3 z-20 mx-auto flex max-w-3xl flex-wrap items-center gap-2 rounded-2xl border border-[var(--line)] bg-[var(--card)] px-4 py-3 text-sm shadow-xl">
               <span className="mr-1 font-medium text-[var(--navy)]">{pilih.size} dipilih</span>
-              <button type="button" disabled={mengatur} onClick={() => terapkanUrutan(geser(daftar, pilih, -1))} className={aksi}>
+              <button type="button" onClick={() => terapkanUrutan(geser(daftarRef.current, pilih, -1))} className={aksi}>
                 <ArrowUp size={14} /> Naik
               </button>
-              <button type="button" disabled={mengatur} onClick={() => terapkanUrutan(geser(daftar, pilih, 1))} className={aksi}>
+              <button type="button" onClick={() => terapkanUrutan(geser(daftarRef.current, pilih, 1))} className={aksi}>
                 <ArrowDown size={14} /> Turun
               </button>
               <form onSubmit={pindahNomor} className="flex items-center gap-2">
@@ -228,11 +369,15 @@ export default function Nama() {
                   aria-label="Pindah ke nomor"
                   className="w-28 rounded-lg border border-[var(--line)] bg-[var(--card)] px-2.5 py-1.5 text-sm text-[var(--text)] outline-none focus:border-[var(--navy)]"
                 />
-                <button type="submit" disabled={mengatur || !keNomor} className={aksi}>
+                <button type="submit" disabled={!keNomor} className={aksi}>
                   <MoveRight size={14} /> Pindah
                 </button>
               </form>
-              <button type="button" onClick={() => setPilih(new Set())} className={`${aksi} ml-auto`}>
+              <button type="button" onClick={urungkan} disabled={riwayat.length === 0} className={`${aksi} ml-auto`}>
+                <Undo2 size={14} /> Urungkan
+              </button>
+              {infoStatus}
+              <button type="button" onClick={() => setPilih(new Set())} className={aksi}>
                 Batal pilih
               </button>
             </div>
