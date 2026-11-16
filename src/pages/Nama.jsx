@@ -27,6 +27,7 @@ export default function Nama() {
   const [keNomor, setKeNomor] = useState('')
   const [riwayat, setRiwayat] = useState([]) // untuk Urungkan
   const [maju, setMaju] = useState([]) // untuk Ulangi
+  const [fokus, setFokus] = useState(null)
   const [status, setStatus] = useState('') // '', 'menyimpan', 'tersimpan', 'gagal'
   const daftarRef = useRef([])
   const serverRef = useRef([]) // keadaan terakhir yang diketahui ada di database
@@ -60,6 +61,15 @@ export default function Nama() {
     const q = cari.trim().toLowerCase()
     return q ? daftar.filter((d) => d.nama.toLowerCase().includes(q)) : daftar
   }, [daftar, cari])
+
+  // Setelah menggeser, gulirkan layar agar baris yang digeser tetap terlihat di tengah.
+  useEffect(() => {
+    if (!fokus) return
+    const t = requestAnimationFrame(() => {
+      document.getElementById(`nama-${fokus.id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    })
+    return () => cancelAnimationFrame(t)
+  }, [fokus])
 
   const catat = () => {
     setRiwayat((r) => [...r.slice(-49), daftarRef.current])
@@ -162,7 +172,7 @@ export default function Nama() {
     }
   }
 
-  const terapkanUrutan = (baruList) => {
+  const terapkanUrutan = (baruList, awal = true) => {
     const bernomor = beriUrutan(baruList)
     const sama = bernomor.every((d, i) => d.id === daftarRef.current[i]?.id)
     if (sama) return
@@ -170,6 +180,9 @@ export default function Nama() {
     catat()
     setLokal(bernomor)
     jadwalkanSimpan()
+    const terpilih = bernomor.filter((d) => pilih.has(d.id))
+    const target = awal ? terpilih[0] : terpilih[terpilih.length - 1]
+    if (target) setFokus({ id: target.id, n: Date.now() })
   }
 
   const pulihkan = (target) => {
@@ -235,7 +248,7 @@ export default function Nama() {
     e.preventDefault()
     const nomor = Number(keNomor)
     if (!Number.isFinite(nomor) || nomor < 1) return
-    terapkanUrutan(pindahKe(daftarRef.current, pilih, nomor))
+    terapkanUrutan(pindahKe(daftarRef.current, pilih, nomor), true)
     setKeNomor('')
   }
 
@@ -323,8 +336,8 @@ export default function Nama() {
         />
       ) : (
         <section className={kartu}>
-          <div className="flex items-center justify-between gap-3 border-b border-[var(--line)] p-4">
-            <div className="relative max-w-xs flex-1">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] p-4">
+            <div className="relative w-full sm:max-w-xs sm:flex-1">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
               <input
                 className={`${input} pl-9`}
@@ -334,28 +347,27 @@ export default function Nama() {
                 aria-label="Cari nama"
               />
             </div>
-            <div className="flex items-center gap-3">
-              {infoStatus}
-              <button type="button" onClick={urungkan} disabled={riwayat.length === 0} className={aksi} title="Urungkan (Ctrl+Z)">
-                <Undo2 size={14} /> Urungkan
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+              <button type="button" onClick={urungkan} disabled={riwayat.length === 0} className={aksi} title="Urungkan (Ctrl+Z)" aria-label="Urungkan">
+                <Undo2 size={14} /> <span className="hidden sm:inline">Urungkan</span>
               </button>
-              <button type="button" onClick={ulangi} disabled={maju.length === 0} className={aksi} title="Ulangi (Ctrl+Y)">
-                <Redo2 size={14} /> Ulangi
+              <button type="button" onClick={ulangi} disabled={maju.length === 0} className={aksi} title="Ulangi (Ctrl+Y)" aria-label="Ulangi">
+                <Redo2 size={14} /> <span className="hidden sm:inline">Ulangi</span>
               </button>
-              <button type="button" onClick={pilihSemuaTampil} className="text-sm text-[var(--navy)] hover:underline">
+              <button type="button" onClick={pilihSemuaTampil} className="px-1 text-sm text-[var(--navy)] hover:underline">
                 {tampil.length > 0 && tampil.every((d) => pilih.has(d.id)) ? 'Lepas semua' : 'Pilih semua'}
               </button>
-              <span className="text-sm text-[var(--muted)]">{daftar.length} nama</span>
+              <span className="ml-auto text-sm text-[var(--muted)]">{daftar.length} nama</span>
             </div>
           </div>
 
           {pilih.size > 0 && (
-            <div className="fixed inset-x-3 bottom-3 z-20 mx-auto flex max-w-3xl flex-wrap items-center gap-2 rounded-2xl border border-[var(--line)] bg-[var(--card)] px-4 py-3 text-sm shadow-xl">
+            <div className="fixed inset-x-2 bottom-2 z-20 mx-auto flex max-w-2xl flex-wrap items-center gap-x-2 gap-y-1.5 rounded-2xl border border-[var(--line)] bg-[var(--card)] px-3 py-2.5 text-sm shadow-xl">
               <span className="mr-1 font-medium text-[var(--navy)]">{pilih.size} dipilih</span>
-              <button type="button" onClick={() => terapkanUrutan(geser(daftarRef.current, pilih, -1))} className={aksi}>
+              <button type="button" onClick={() => terapkanUrutan(geser(daftarRef.current, pilih, -1), true)} className={aksi}>
                 <ArrowUp size={14} /> Naik
               </button>
-              <button type="button" onClick={() => terapkanUrutan(geser(daftarRef.current, pilih, 1))} className={aksi}>
+              <button type="button" onClick={() => terapkanUrutan(geser(daftarRef.current, pilih, 1), false)} className={aksi}>
                 <ArrowDown size={14} /> Turun
               </button>
               <form onSubmit={pindahNomor} className="flex items-center gap-2">
@@ -367,7 +379,7 @@ export default function Nama() {
                   onChange={(e) => setKeNomor(e.target.value)}
                   placeholder="Ke nomor"
                   aria-label="Pindah ke nomor"
-                  className="w-28 rounded-lg border border-[var(--line)] bg-[var(--card)] px-2.5 py-1.5 text-sm text-[var(--text)] outline-none focus:border-[var(--navy)]"
+                  className="w-24 rounded-lg border border-[var(--line)] bg-[var(--card)] px-2.5 py-1.5 text-sm text-[var(--text)] outline-none focus:border-[var(--navy)]"
                 />
                 <button type="submit" disabled={!keNomor} className={aksi}>
                   <MoveRight size={14} /> Pindah
@@ -388,7 +400,7 @@ export default function Nama() {
           ) : (
             <ul className="divide-y divide-[var(--line)]">
               {tampil.map((d) => (
-                <li key={d.id} className={'flex items-center gap-3 px-4 py-2.5 ' + (pilih.has(d.id) ? 'bg-[var(--navy-soft)]' : '')}>
+                <li key={d.id} id={`nama-${d.id}`} className={'scroll-mt-24 flex items-center gap-3 px-4 py-2.5 ' + (pilih.has(d.id) ? 'bg-[var(--navy-soft)]' : '')}>
                   <input
                     type="checkbox"
                     checked={pilih.has(d.id)}
