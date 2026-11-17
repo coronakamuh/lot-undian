@@ -4,8 +4,7 @@ import { proper } from './proper.js'
 // Template = file Excel asli Anda (sheet LOT, SUMBER, INDEX, INDEX (2)) tanpa isi nama.
 // Hanya data yang diganti; gaya, ukuran sel, border, dan pengaturan cetak dibiarkan persis seperti aslinya.
 
-export const MAKS_NAMA = 190 // sheet INDEX menyediakan baris untuk 190 nama
-const SLOT_LOT_MAKS = 240 // sheet LOT menyediakan 96 baris = 48 x 5 kotak
+export const MAKS_NAMA = 189 // sheet INDEX menyediakan baris 3-191 = 189 nama (LOT: 210 kotak)
 const KOLOM_NAMA_INDEX = ['B', 'U', 'AN', 'BG', 'BZ', 'CS']
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -30,32 +29,35 @@ function buatSumber(xml, daftar) {
     .replace(/<sheetData\s*\/>|<sheetData>[\s\S]*?<\/sheetData>/, `<sheetData>${baris}</sheetData>`)
 }
 
-// ---- LOT: nomor di baris ganjil, nama di baris genap, 5 kotak per baris ----------------
-const KOLOM_LOT = ['A', 'B', 'C', 'D', 'E']
-const RANGE_SUMBER = `SUMBER!$A$1:$A$${SLOT_LOT_MAKS}`
+// ---- LOT: 6 kotak per baris; baris ganjil = nomor ("1."), baris genap = nama --------------
+// Rumus di template sudah benar (nomor selalu tampil, nama diambil dari SUMBER, satu kata per baris).
+// Di sini hanya nilai tersimpan nama yang diisi, dan tinggi baris diseragamkan.
+const LOT_PER_BARIS = 6
+const LOT_BARIS_MAKS = 70 // 35 pasang baris = 210 kotak
+const TINGGI_NOMOR = '16.350000000000001'
+const TINGGI_NAMA = '68.45'
 
 function buatLot(xml, daftar) {
-  return xml.replace(/<row r="(\d+)"([^>]*?)(\/>|>[\s\S]*?<\/row>)/g, (utuh, noStr, atribut) => {
+  const barisSeragam = xml.replace(/<row r="(\d+)"([^>]*?)(\/?>)/g, (utuh, noStr, atribut, tutup) => {
     const r = Number(noStr)
-    if (r > 96) return utuh
-    const atrib = atribut.replace(/\s*\/$/, '')
-    let isi = ''
-    for (let c = 1; c <= 5; c++) {
-      const ref = `${KOLOM_LOT[c - 1]}${r}`
-      if (r % 2 === 1) {
-        // baris nomor
-        const slot = ((r - 1) / 2) * 5 + c
-        const formula = `IFERROR(IF(INDEX(${RANGE_SUMBER},(ROW()-1)/2*5+COLUMN())="","",(ROW()-1)/2*5+COLUMN()),"")`
-        isi += sel(ref, '3', formula, slot <= daftar.length ? slot : '')
-      } else {
-        // baris nama
-        const slot = (r / 2 - 1) * 5 + c
-        const formula = `IFERROR(TRIM(INDEX(${RANGE_SUMBER},(ROW()/2-1)*5+COLUMN()))&"","")`
-        isi += sel(ref, '13', formula, slot <= daftar.length ? daftar[slot - 1].trim() : '')
-      }
-    }
-    return `<row r="${r}"${atrib}>${isi}</row>`
+    if (r > LOT_BARIS_MAKS) return utuh
+    const tinggi = r % 2 === 1 ? TINGGI_NOMOR : TINGGI_NAMA
+    const atrib = atribut
+      .replace(/\s+ht="[^"]*"/, '')
+      .replace(/\s+customHeight="[^"]*"/, '')
+    return `<row r="${r}"${atrib} ht="${tinggi}" customHeight="1"${tutup}`
   })
+  return barisSeragam.replace(
+    /<c r="([A-F])(\d+)"([^>/]*)>((?:(?!<\/c>)[\s\S])*)<\/c>/g,
+    (utuh, kol, noStr, atribut, isi) => {
+      const r = Number(noStr)
+      if (r > LOT_BARIS_MAKS || r % 2 === 1) return utuh
+      const slot = (r / 2 - 1) * LOT_PER_BARIS + (kol.charCodeAt(0) - 64)
+      const nama = (daftar[slot - 1] || '').replace(/\s+/g, '\n')
+      const formula = (isi.match(/<f[\s\S]*?(?:<\/f>|\/>)/) || [''])[0]
+      return `<c r="${kol}${r}"${atribut}>${formula}<v>${esc(nama)}</v></c>`
+    },
+  )
 }
 
 // ---- INDEX dan INDEX (2): nama = PROPER(SUMBER!A{baris-2}) di 6 blok -------------------
@@ -74,8 +76,8 @@ function rapikanWorkbook(xml, jumlah) {
   let out = xml.replace(/<calcPr([^>]*?)\s*\/>/, (m, a) =>
     /fullCalcOnLoad/.test(a) ? m : `<calcPr${a} fullCalcOnLoad="1"/>`,
   )
-  const barisCetak = Math.max(2, Math.min(96, Math.ceil(jumlah / 5) * 2))
-  const area = `<definedName name="_xlnm.Print_Area" localSheetId="0">LOT!$A$1:$E$${barisCetak}</definedName>`
+  const barisCetak = Math.max(2, Math.min(70, Math.ceil(jumlah / 6) * 2))
+  const area = `<definedName name="_xlnm.Print_Area" localSheetId="0">LOT!$A$1:$F$${barisCetak}</definedName>`
   out = out.replace(/<definedNames>[\s\S]*?<\/definedNames>/, '')
   out = out.replace(/<\/sheets>/, `</sheets><definedNames>${area}</definedNames>`)
   return out

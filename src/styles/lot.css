@@ -1,44 +1,45 @@
-/* Ukuran meniru sheet LOT di Excel: kolom 20,31 karakter (~37,6 mm),
-   baris nomor 17,1 pt, baris nama 48,2 pt, 5 lot per baris, 12 baris per halaman A4. */
+/* Ukuran meniru sheet LOT di Excel (file acuan baru): kolom 22,71 karakter (~42,1 mm),
+   baris nomor 16,35 pt, baris nama 68,45 pt, 6 lot per baris, 6 baris per halaman A4 landscape. */
 .lot-halaman {
   background: #fff;
   color: #000;
-  width: 188mm;
+  width: 252.4mm;
   margin: 0 auto;
   font-family: Aptos, 'Segoe UI', Calibri, Inter, Arial, sans-serif;
 }
 .lot-baris {
   display: grid;
-  grid-template-columns: repeat(5, 37.6mm);
+  grid-template-columns: repeat(6, 42.07mm);
 }
 .lot-sel {
   box-sizing: border-box;
-  width: 37.6mm;
+  width: 42.07mm;
 }
 .lot-nomor {
   box-sizing: border-box;
-  height: 17.1pt;
+  height: 16.35pt;
   border: 3px double #000;
   border-bottom: 0;
   padding: 0 3px;
   font-family: 'Aptos Narrow', 'Arial Narrow', Aptos, Inter, Arial, sans-serif;
   font-size: 13pt;
   font-weight: 700;
-  line-height: 17pt;
+  line-height: 16pt;
   text-align: left;
   overflow: hidden;
 }
 .lot-nama {
   box-sizing: border-box;
-  height: 48.2pt;
+  height: 68.45pt;
   border: 3px double #000;
   border-top: 0;
   padding: 0 3px;
-  font-size: 16pt;
+  font-size: 17pt;
   font-weight: 700;
   line-height: 1.1;
   text-align: center;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   overflow: hidden;
@@ -50,8 +51,8 @@
 }
 
 @page {
-  size: A4 portrait;
-  margin: 5mm 3mm;
+  size: A4 landscape;
+  margin: 5mm 6mm;
 }
 
 @media print {
@@ -59,7 +60,7 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
-    height: 286mm;
+    height: 200mm;
   }
   html, body {
     background: #fff !important;
