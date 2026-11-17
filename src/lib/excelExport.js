@@ -1,7 +1,7 @@
 import JSZip from 'jszip'
 import { proper } from './proper.js'
 
-// Template = file Excel asli Anda (sheet LOT, SUMBER, INDEX, INDEX (2)) tanpa isi nama.
+// Template = file Excel asli Anda (sheet LOT, SUMBER, INDEX, INDEX (2), Lembaran) tanpa isi nama.
 // Hanya data yang diganti; gaya, ukuran sel, border, dan pengaturan cetak dibiarkan persis seperti aslinya.
 
 export const MAKS_NAMA = 189 // sheet INDEX menyediakan baris 3-191 = 189 nama (LOT: 210 kotak)
@@ -71,6 +71,27 @@ function buatIndex(xml, daftar) {
   })
 }
 
+// ---- Lembaran: daftar iuran, 4 blok x 48 baris (nomor tetap, nama = PROPER dari SUMBER) ---
+const KOLOM_LEMBARAN = { B: 'A', E: 'D', H: 'G', K: 'J' } // kolom nama -> kolom nomor
+
+function buatLembaran(xml, daftar) {
+  const nomor = new Map()
+  for (const m of xml.matchAll(/<c r="([ADGJ])(\d+)"[^>/]*><v>(\d+)<\/v><\/c>/g)) {
+    nomor.set(`${m[1]}${m[2]}`, Number(m[3]))
+  }
+  return xml.replace(
+    /<c r="([BEHK])(\d+)"([^>/]*)>((?:(?!<\/c>)[\s\S])*)<\/c>/g,
+    (utuh, kol, noStr, atribut, isi) => {
+      const r = Number(noStr)
+      if (r < 3 || r > 50) return utuh
+      const no = nomor.get(`${KOLOM_LEMBARAN[kol]}${r}`)
+      const formula = (isi.match(/<f[\s\S]*?(?:<\/f>|\/>)/) || [''])[0]
+      if (!formula || !no) return utuh
+      return `<c r="${kol}${r}"${atribut}>${formula}<v>${esc(proper(daftar[no - 1] || ''))}</v></c>`
+    },
+  )
+}
+
 // ---- Bagian lain: hitung ulang, hapus calcChain, area cetak LOT, bersihkan teks lama ----
 function rapikanWorkbook(xml, jumlah) {
   let out = xml.replace(/<calcPr([^>]*?)\s*\/>/, (m, a) =>
@@ -103,25 +124,27 @@ export async function buatXlsx(templateBytes, daftarMentah) {
   const zip = await JSZip.loadAsync(templateBytes)
   const baca = (p) => zip.file(p).async('string')
 
-  const [s1, s2, s3, s4] = await Promise.all(
-    ['sheet1', 'sheet2', 'sheet3', 'sheet4'].map((n) => baca(`xl/worksheets/${n}.xml`)),
+  const [s1, s2, s3, s4, s5] = await Promise.all(
+    ['sheet1', 'sheet2', 'sheet3', 'sheet4', 'sheet5'].map((n) => baca(`xl/worksheets/${n}.xml`)),
   )
   const lot = buatLot(s1, daftar)
   const sumber = buatSumber(s2, daftar)
   const index1 = buatIndex(s3, daftar)
   const index2 = buatIndex(s4, daftar)
+  const lembaran = buatLembaran(s5, daftar)
 
   zip.file('xl/worksheets/sheet1.xml', lot)
   zip.file('xl/worksheets/sheet2.xml', sumber)
   zip.file('xl/worksheets/sheet3.xml', index1)
   zip.file('xl/worksheets/sheet4.xml', index2)
+  zip.file('xl/worksheets/sheet5.xml', lembaran)
 
   zip.file('xl/workbook.xml', rapikanWorkbook(await baca('xl/workbook.xml'), daftar.length))
 
   if (zip.file('xl/sharedStrings.xml')) {
     zip.file(
       'xl/sharedStrings.xml',
-      kosongkanStringTakTerpakai(await baca('xl/sharedStrings.xml'), [lot, sumber, index1, index2]),
+      kosongkanStringTakTerpakai(await baca('xl/sharedStrings.xml'), [lot, sumber, index1, index2, lembaran]),
     )
   }
 
