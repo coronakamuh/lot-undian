@@ -185,7 +185,8 @@ export async function buatXlsxBytes(templateBytes, daftar, tipe = 'uint8array') 
 
 export async function unduhExcel(daftar) {
   const url = `${import.meta.env.BASE_URL}template-lot-index.xlsx`
-  const res = await fetch(url)
+  // no-store + penanda waktu: selalu ambil template terbaru, bukan salinan lama di cache browser.
+  const res = await fetch(`${url}?v=${Date.now()}`, { cache: 'no-store' })
   if (!res.ok) throw new Error('Template Excel tidak ditemukan.')
   const blob = await buatXlsxBytes(await res.arrayBuffer(), daftar, 'blob')
   const href = URL.createObjectURL(
