@@ -1,7 +1,7 @@
 import JSZip from 'jszip'
 import { proper } from './proper.js'
 
-// Template = file Excel asli Anda (sheet LOT, SUMBER, INDEX, INDEX (2), print folio) tanpa isi nama.
+// Template = file Excel asli Anda (sheet LOT, SUMBER, INDEX, INDEX (2), print folio, Laporan Kas) tanpa isi nama.
 // Hanya data yang diganti; gaya, ukuran sel, border, dan pengaturan cetak dibiarkan persis seperti aslinya.
 
 export const MAKS_NAMA = 189 // sheet INDEX menyediakan baris 3-191 = 189 nama (LOT: 210 kotak)
