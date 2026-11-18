@@ -34,8 +34,23 @@ function buatSumber(xml, daftar) {
 // Di sini hanya nilai tersimpan nama yang diisi, dan tinggi baris diseragamkan.
 const LOT_PER_BARIS = 6
 const LOT_BARIS_MAKS = 70 // 35 pasang baris = 210 kotak
-const TINGGI_NOMOR = '16.350000000000001'
+// Satu lot (nomor + nama) = 3 cm: 16,59 pt (0,59 cm) + 68,45 pt (2,41 cm) = 85,04 pt.
+const TINGGI_NOMOR = '16.59'
 const TINGGI_NAMA = '68.45'
+// Pemisah halaman manual tiap 12 baris (6 lot): nomor dan nama satu lot tidak pernah terpisah antar halaman.
+const LOT_BARIS_PER_HALAMAN = 12
+
+function sisipkanPemisahHalaman(xml, jumlah) {
+  const barisCetak = Math.max(2, Math.min(LOT_BARIS_MAKS, Math.ceil(jumlah / LOT_PER_BARIS) * 2))
+  const brk = []
+  for (let r = LOT_BARIS_PER_HALAMAN; r < barisCetak; r += LOT_BARIS_PER_HALAMAN) {
+    brk.push(`<brk id="${r}" max="16383" man="1"/>`)
+  }
+  const bersih = xml.replace(/<rowBreaks[\s\S]*?<\/rowBreaks>/, '')
+  if (brk.length === 0) return bersih
+  const blok = `<rowBreaks count="${brk.length}" manualBreakCount="${brk.length}">${brk.join('')}</rowBreaks>`
+  return bersih.replace(/(<pageSetup[^>]*\/>)(<headerFooter[\s\S]*?<\/headerFooter>)?/, (m) => m + blok)
+}
 
 function buatLot(xml, daftar) {
   const barisSeragam = xml.replace(/<row r="(\d+)"([^>]*?)(\/?>)/g, (utuh, noStr, atribut, tutup) => {
@@ -47,7 +62,7 @@ function buatLot(xml, daftar) {
       .replace(/\s+customHeight="[^"]*"/, '')
     return `<row r="${r}"${atrib} ht="${tinggi}" customHeight="1"${tutup}`
   })
-  return barisSeragam.replace(
+  const terisi = barisSeragam.replace(
     /<c r="([A-F])(\d+)"([^>/]*)>((?:(?!<\/c>)[\s\S])*)<\/c>/g,
     (utuh, kol, noStr, atribut, isi) => {
       const r = Number(noStr)
@@ -58,6 +73,7 @@ function buatLot(xml, daftar) {
       return `<c r="${kol}${r}"${atribut}>${formula}<v>${esc(nama)}</v></c>`
     },
   )
+  return sisipkanPemisahHalaman(terisi, daftar.length)
 }
 
 // ---- INDEX dan INDEX (2): nama = PROPER(SUMBER!A{baris-2}) di 6 blok -------------------
