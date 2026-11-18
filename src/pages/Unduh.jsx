@@ -10,7 +10,7 @@ const SHEET = [
   ['SUMBER', 'daftar induk nama'],
   ['INDEX', 'buku index 1 (nomor 1–102)'],
   ['INDEX (2)', 'buku index 2 (nomor 103–204)'],
-  ['Lembaran', 'daftar iuran 4 blok'],
+  ['print folio', 'daftar iuran 4 blok, untuk dicetak di kertas folio'],
 ]
 
 export default function Unduh() {
