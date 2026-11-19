@@ -87,7 +87,7 @@ function buatIndex(xml, daftar) {
   })
 }
 
-// ---- print folio: daftar iuran, 4 blok x 48 baris (nomor tetap, nama = PROPER dari SUMBER) ---
+// ---- print folio: daftar iuran, 4 blok x 50 baris (200 nomor) (nomor tetap, nama = PROPER dari SUMBER) ---
 const KOLOM_LEMBARAN = { B: 'A', E: 'D', H: 'G', K: 'J' } // kolom nama -> kolom nomor
 
 function buatLembaran(xml, daftar) {
@@ -99,7 +99,7 @@ function buatLembaran(xml, daftar) {
     /<c r="([BEHK])(\d+)"([^>/]*)>((?:(?!<\/c>)[\s\S])*)<\/c>/g,
     (utuh, kol, noStr, atribut, isi) => {
       const r = Number(noStr)
-      if (r < 3 || r > 50) return utuh
+      if (r < 3 || r > 52) return utuh
       const no = nomor.get(`${KOLOM_LEMBARAN[kol]}${r}`)
       const formula = (isi.match(/<f[\s\S]*?(?:<\/f>|\/>)/) || [''])[0]
       if (!formula || !no) return utuh

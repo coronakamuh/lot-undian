@@ -10,7 +10,7 @@ const SHEET = [
   ['SUMBER', 'daftar induk nama'],
   ['INDEX', 'buku index 1 (nomor 1–102)'],
   ['INDEX (2)', 'buku index 2 (nomor 103–204)'],
-  ['print folio', 'daftar iuran 4 blok, untuk dicetak di kertas folio'],
+  ['print folio', 'daftar iuran 200 nomor (4 blok × 50), untuk dicetak di kertas folio'],
   ['Laporan Kas', 'laporan kas musholla (tetap, tidak berubah)'],
 ]
 
