@@ -4,7 +4,7 @@ import { proper } from './proper.js'
 // Template = file Excel asli Anda (sheet LOT, SUMBER, INDEX, INDEX (2), print folio, Laporan Kas) tanpa isi nama.
 // Hanya data yang diganti; gaya, ukuran sel, border, dan pengaturan cetak dibiarkan persis seperti aslinya.
 
-export const MAKS_NAMA = 192 // INDEX baris 3-194 = 192 nama, print folio 192 (LOT: 210 kotak)
+export const MAKS_NAMA = 200 // INDEX baris 3-202 = 200 nama, print folio 200 (LOT: 210 kotak)
 const KOLOM_NAMA_INDEX = ['B', 'U', 'AN', 'BG', 'BZ', 'CS']
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -81,7 +81,7 @@ function buatIndex(xml, daftar) {
   const pola = new RegExp(`<c r="(${KOLOM_NAMA_INDEX.join('|')})(\\d+)"([^>]*)>(?:(?!</c>)[\\s\\S])*</c>`, 'g')
   return xml.replace(pola, (utuh, kol, noStr, atribut) => {
     const r = Number(noStr)
-    if (r < 3 || r > 194) return utuh
+    if (r < 3 || r > 202) return utuh
     const gaya = (atribut.match(/\ss="(\d+)"/) || [])[1]
     return sel(`${kol}${r}`, gaya, `PROPER(SUMBER!A${r - 2})`, proper(daftar[r - 3] || ''))
   })
