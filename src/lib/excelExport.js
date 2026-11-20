@@ -1,10 +1,11 @@
 import JSZip from 'jszip'
-import { proper } from './proper.js'
 
 // Template = file Excel asli Anda (sheet LOT, SUMBER, INDEX, INDEX (2), print folio, Laporan Kas) tanpa isi nama.
 // Hanya data yang diganti; gaya, ukuran sel, border, dan pengaturan cetak dibiarkan persis seperti aslinya.
 
 export const MAKS_NAMA = 200 // INDEX baris 3-202 = 200 nama, print folio 200 (LOT: 210 kotak)
+// INDEX diisi sampai dasar halaman Legal terakhir (4 halaman: 55 + 3x59 = 232 baris data, baris 3-234)
+const INDEX_BARIS_AKHIR = 234
 const KOLOM_NAMA_INDEX = ['B', 'U', 'AN', 'BG', 'BZ', 'CS']
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -34,7 +35,7 @@ function buatSumber(xml, daftar) {
 // Di sini nilai tersimpan nama diisi dan tinggi baris dipastikan 3 cm.
 const LOT_PER_BARIS = 6
 const LOT_BARIS_MAKS = 36 // 36 baris x 6 = 216 kotak (6 halaman penuh, kotak kosong ikut tercetak)
-const TINGGI_LOT = '85.05' // 3 cm
+const TINGGI_LOT = '85.15' // 3 cm
 const LOT_BARIS_PER_HALAMAN = 6 // 6 baris lot per halaman A4 landscape
 
 function sisipkanPemisahHalaman(xml) {
@@ -69,18 +70,18 @@ function buatLot(xml, daftar) {
   return sisipkanPemisahHalaman(terisi)
 }
 
-// ---- INDEX dan INDEX (2): nama = PROPER(SUMBER!A{baris-2}) di 6 blok -------------------
+// ---- INDEX dan INDEX (2): nama = SUMBER!A{baris-2} (huruf kapital apa adanya) di 6 blok -------------------
 function buatIndex(xml, daftar) {
   const pola = new RegExp(`<c r="(${KOLOM_NAMA_INDEX.join('|')})(\\d+)"([^>]*)>(?:(?!</c>)[\\s\\S])*</c>`, 'g')
   return xml.replace(pola, (utuh, kol, noStr, atribut) => {
     const r = Number(noStr)
-    if (r < 3 || r > 202) return utuh
+    if (r < 3 || r > INDEX_BARIS_AKHIR) return utuh
     const gaya = (atribut.match(/\ss="(\d+)"/) || [])[1]
-    return sel(`${kol}${r}`, gaya, `PROPER(SUMBER!A${r - 2})`, proper(daftar[r - 3] || ''))
+    return sel(`${kol}${r}`, gaya, `SUMBER!A${r - 2}&""`, daftar[r - 3] || '')
   })
 }
 
-// ---- print folio: daftar iuran, 4 blok x 50 baris (200 nomor) (nomor tetap, nama = PROPER dari SUMBER) ---
+// ---- print folio: daftar iuran, 4 blok x 50 baris (200 nomor) (nomor tetap, nama kapital dari SUMBER) ---
 const KOLOM_LEMBARAN = { B: 'A', E: 'D', H: 'G', K: 'J' } // kolom nama -> kolom nomor
 
 function buatLembaran(xml, daftar) {
@@ -96,7 +97,7 @@ function buatLembaran(xml, daftar) {
       const no = nomor.get(`${KOLOM_LEMBARAN[kol]}${r}`)
       const formula = (isi.match(/<f[\s\S]*?(?:<\/f>|\/>)/) || [''])[0]
       if (!formula || !no) return utuh
-      return `<c r="${kol}${r}"${atribut}>${formula}<v>${esc(proper(daftar[no - 1] || ''))}</v></c>`
+      return `<c r="${kol}${r}"${atribut}>${formula}<v>${esc(daftar[no - 1] || '')}</v></c>`
     },
   )
 }
@@ -107,7 +108,7 @@ function rapikanWorkbook(xml) {
     /fullCalcOnLoad/.test(a) ? m : `<calcPr${a} fullCalcOnLoad="1"/>`,
   )
   const barisCetak = LOT_BARIS_MAKS
-  const area = `<definedName name="_xlnm.Print_Area" localSheetId="0">LOT!$A$1:$F$${barisCetak}</definedName>`
+  const area = `<definedName name="_xlnm.Print_Area" localSheetId="0">'LOT A4'!$A$1:$F$${barisCetak}</definedName>`
   out = out.replace(/<definedNames>[\s\S]*?<\/definedNames>/, '')
   out = out.replace(/<\/sheets>/, `</sheets><definedNames>${area}</definedNames>`)
   return out

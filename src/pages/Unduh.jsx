@@ -6,12 +6,12 @@ import { ambilNama, pesanError } from '../lib/namaApi.js'
 import { unduhExcel, MAKS_NAMA } from '../lib/excelExport.js'
 
 const SHEET = [
-  ['LOT', 'kotak nama (6 per baris, 216 kotak) untuk dipotong dan diundi'],
+  ['LOT A4', 'kotak nama (6 per baris, 216 kotak) untuk dipotong dan diundi'],
   ['SUMBER', 'daftar induk nama'],
-  ['INDEX', 'buku index 1 (nomor 1–102)'],
-  ['INDEX (2)', 'buku index 2 (nomor 103–204)'],
+  ['INDEX F4', 'buku index 1 (daftar nama sampai halaman terakhir)'],
+  ['INDEX2 F4', 'buku index 2 (isi sama, cetak terpisah)'],
   ['print folio', 'daftar iuran 200 nomor (4 blok × 50), untuk dicetak di kertas folio'],
-  ['Laporan Kas', 'laporan kas musholla (tetap, tidak berubah)'],
+  ['Laporan Kas A4', 'laporan kas musholla (tetap, tidak berubah)'],
 ]
 
 export default function Unduh() {
