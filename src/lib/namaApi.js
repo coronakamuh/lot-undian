@@ -22,6 +22,15 @@ export async function tambahNama(nama, urutan) {
   return data
 }
 
+export async function tambahBanyak(baris) {
+  const { data, error } = await supabase
+    .from('lot_nama')
+    .insert(baris.map(({ nama, urutan }) => ({ nama, urutan })))
+    .select(KOLOM)
+  if (error) throw error
+  return [...data].sort((a, b) => a.urutan - b.urutan)
+}
+
 export async function ubahNama(id, nama) {
   const { data, error } = await supabase
     .from('lot_nama')

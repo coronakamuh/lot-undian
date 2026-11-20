@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Users, Plus, Pencil, Trash2, Check, X, Search, Loader2, ArrowUp, ArrowDown, MoveRight, Undo2, Redo2, Cloud } from 'lucide-react'
-import PageTitle from '../components/PageTitle.jsx'
+import { ClipboardList, Plus, Trash2, Check, X, Search, Loader2, ArrowUp, ArrowDown, MoveRight, Undo2, Redo2, Cloud, Download, Sun, Moon, Monitor } from 'lucide-react'
 import EmptyState from '../components/EmptyState.jsx'
-import { ambilNama, tambahNama, ubahNama, hapusNama, hapusBanyak, simpanUrutan, pesanError } from '../lib/namaApi.js'
+import { ambilNama, tambahBanyak, ubahNama, hapusNama, hapusBanyak, simpanUrutan, pesanError } from '../lib/namaApi.js'
 import { geser, pindahKe, beriUrutan } from '../lib/urutan.js'
+import { unduhExcel, MAKS_NAMA } from '../lib/excelExport.js'
+
+const rapikan = (s) => s.replace(/\s+/g, ' ').trim().toUpperCase()
+const URUT_TEMA = ['terang', 'gelap', 'sistem']
+const IKON_TEMA = { terang: Sun, gelap: Moon, sistem: Monitor }
 
 const kartu = 'rounded-2xl border border-[var(--line)] bg-[var(--card)] shadow-sm'
 const input =
@@ -13,12 +17,16 @@ const aksi =
 const tombolIkon =
   'rounded-lg p-2 text-[var(--muted)] hover:bg-[var(--navy-soft)] hover:text-[var(--text)] disabled:opacity-50'
 
-export default function Nama() {
+export default function Nama({ tema, setTema }) {
   const [daftar, setDaftar] = useState([])
   const [memuat, setMemuat] = useState(true)
   const [gagal, setGagal] = useState('')
   const [pesan, setPesan] = useState('')
   const [baru, setBaru] = useState('')
+  const [posisi, setPosisi] = useState('akhir') // 'akhir' | 'nomor'
+  const [diNomor, setDiNomor] = useState('')
+  const [mengunduh, setMengunduh] = useState(false)
+  const [galatUnduh, setGalatUnduh] = useState('')
   const [menyimpan, setMenyimpan] = useState(false)
   const [cari, setCari] = useState('')
   const [editId, setEditId] = useState(null)
@@ -136,18 +144,49 @@ export default function Nama() {
     [simpanSekarang],
   )
 
+  // Pecah teks tempelan (satu nama per baris, atau dipisah koma/titik koma), rapikan, buang yang kembar.
+  const urai = (teks) => {
+    const ada = new Set(daftarRef.current.map((d) => d.nama.trim().toLowerCase()))
+    const baruList = []
+    const lewat = []
+    for (const mentah of teks.split(/[\n;,]+/)) {
+      const nama = rapikan(mentah)
+      if (!nama) continue
+      const k = nama.toLowerCase()
+      if (ada.has(k)) lewat.push(nama)
+      else {
+        ada.add(k)
+        baruList.push(nama)
+      }
+    }
+    return { baruList, lewat }
+  }
+
   const tambah = async (e) => {
     e.preventDefault()
-    if (!baru.trim() || menyimpan) return
+    const { baruList, lewat } = urai(baru)
+    if (menyimpan) return
+    if (baruList.length === 0) {
+      setPesan(lewat.length ? `Sudah ada di daftar: ${lewat.join(', ')}.` : '')
+      return
+    }
     setMenyimpan(true)
     setPesan('')
     try {
-      const urutan = daftarRef.current.reduce((m, d) => Math.max(m, d.urutan), 0) + 1
-      const item = await tambahNama(baru, urutan)
+      const awal = daftarRef.current.reduce((m, d) => Math.max(m, d.urutan), 0)
+      const items = await tambahBanyak(baruList.map((nama, i) => ({ nama, urutan: awal + i + 1 })))
       catat()
-      serverRef.current = [...serverRef.current, item]
-      setLokal([...daftarRef.current, item])
+      serverRef.current = [...serverRef.current, ...items]
+      let list = [...daftarRef.current, ...items]
+      const nomor = Math.round(Number(diNomor))
+      if (posisi === 'nomor' && Number.isFinite(nomor) && nomor >= 1 && nomor <= daftarRef.current.length) {
+        list = beriUrutan(pindahKe(list, new Set(items.map((d) => d.id)), nomor))
+        jadwalkanSimpan()
+      }
+      setLokal(list)
+      setFokus({ id: items[0].id, n: Date.now() })
       setBaru('')
+      if (lewat.length) setPesan(`${items.length} nama ditambah. Dilewati karena sudah ada: ${lewat.join(', ')}.`)
     } catch (err) {
       setPesan(pesanError(err))
     } finally {
@@ -156,11 +195,12 @@ export default function Nama() {
   }
 
   const simpanEdit = async (id) => {
-    if (!editNilai.trim() || menyimpan) return
+    const nama = rapikan(editNilai)
+    if (!nama || menyimpan) return
     setMenyimpan(true)
     setPesan('')
     try {
-      const item = await ubahNama(id, editNilai)
+      const item = await ubahNama(id, nama)
       catat()
       serverRef.current = serverRef.current.map((x) => (x.id === id ? { ...x, nama: item.nama } : x))
       setLokal(daftarRef.current.map((x) => (x.id === id ? { ...x, nama: item.nama } : x)))
@@ -169,6 +209,18 @@ export default function Nama() {
       setPesan(pesanError(err))
     } finally {
       setMenyimpan(false)
+    }
+  }
+
+  const unduh = async () => {
+    setMengunduh(true)
+    setGalatUnduh('')
+    try {
+      await unduhExcel(daftarRef.current.map((d) => d.nama))
+    } catch (e) {
+      setGalatUnduh(e?.message || 'Gagal membuat file Excel. Coba lagi.')
+    } finally {
+      setMengunduh(false)
     }
   }
 
@@ -272,147 +324,195 @@ export default function Nama() {
 
   const infoStatus =
     status === 'menyimpan' ? (
-      <span className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
-        <Loader2 size={14} className="animate-spin" /> Menyimpan…
+      <span className="flex items-center gap-1 text-xs text-[var(--muted)]">
+        <Loader2 size={12} className="animate-spin" /> Menyimpan…
       </span>
     ) : status === 'tersimpan' ? (
-      <span className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
-        <Cloud size={14} /> Tersimpan
+      <span className="flex items-center gap-1 text-xs text-[var(--muted)]">
+        <Cloud size={12} /> Tersimpan
       </span>
     ) : status === 'gagal' ? (
-      <button type="button" onClick={simpanSekarang} className="text-sm text-red-600 hover:underline dark:text-red-400">
+      <button type="button" onClick={simpanSekarang} className="text-xs text-red-600 hover:underline dark:text-red-400">
         Gagal menyimpan, coba lagi
       </button>
     ) : null
 
+  const IkonTema = IKON_TEMA[tema] || Monitor
+  const jumlahBaru = urai(baru).baruList.length
+  const kelebihan = daftar.length > MAKS_NAMA
+
   return (
-    <div className={pilih.size > 0 ? 'pb-28' : ''}>
-      <PageTitle judul="Nama" deskripsi="Daftar induk nama yang dipakai untuk lot dan buku index." />
-
-      <form onSubmit={tambah} className={`${kartu} mb-4 flex gap-2 p-4`}>
-        <input
-          className={input}
-          value={baru}
-          onChange={(e) => setBaru(e.target.value)}
-          placeholder="Tambah nama baru"
-          aria-label="Nama baru"
-        />
-        <button
-          type="submit"
-          disabled={!baru.trim() || menyimpan}
-          className="flex shrink-0 items-center gap-2 rounded-xl bg-[var(--navy)] px-4 py-2.5 text-sm font-medium text-[var(--on-navy)] disabled:opacity-50"
-        >
-          {menyimpan ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-          Tambah
-        </button>
-      </form>
-
-      {pesan && (
-        <p role="alert" className="mb-4 rounded-xl bg-red-50 px-4 py-2.5 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
-          {pesan}
-        </p>
-      )}
-
-      {memuat ? (
-        <div className={`${kartu} flex items-center justify-center gap-2 py-14 text-sm text-[var(--muted)]`}>
-          <Loader2 size={18} className="animate-spin" /> Memuat daftar nama…
-        </div>
-      ) : gagal ? (
-        <div className={`${kartu} px-6 py-12 text-center`}>
-          <p className="text-sm text-[var(--text)]">{gagal}</p>
+    <div className={pilih.size > 0 ? 'pb-28' : 'pb-6'}>
+      <header className="sticky top-0 z-20 border-b border-[var(--line)] bg-[var(--card)]">
+        <div className="mx-auto flex max-w-5xl items-center gap-2 px-3 py-2.5 sm:px-6">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--navy)] text-[var(--on-navy)]">
+            <ClipboardList size={16} />
+          </div>
+          <div className="min-w-0 flex-1 leading-tight">
+            <h1 className="truncate text-sm font-semibold text-[var(--text)]">Lot Undian</h1>
+            <p className="flex items-center gap-1.5 text-xs text-[var(--muted)]">
+              {daftar.length} nama {infoStatus}
+            </p>
+          </div>
+          <button type="button" onClick={urungkan} disabled={riwayat.length === 0} className={tombolIkon} title="Urungkan (Ctrl+Z)" aria-label="Urungkan">
+            <Undo2 size={18} />
+          </button>
+          <button type="button" onClick={ulangi} disabled={maju.length === 0} className={tombolIkon} title="Ulangi (Ctrl+Y)" aria-label="Ulangi">
+            <Redo2 size={18} />
+          </button>
           <button
             type="button"
-            onClick={muat}
-            className="mt-3 rounded-xl border border-[var(--line)] px-4 py-2 text-sm text-[var(--text)] hover:bg-[var(--navy-soft)]"
+            onClick={() => setTema(URUT_TEMA[(URUT_TEMA.indexOf(tema) + 1) % URUT_TEMA.length])}
+            className={tombolIkon}
+            title={`Tema: ${tema}`}
+            aria-label={`Ganti tema (sekarang ${tema})`}
           >
-            Coba lagi
+            <IkonTema size={18} />
+          </button>
+          <button
+            type="button"
+            onClick={unduh}
+            disabled={mengunduh || memuat || daftar.length === 0 || kelebihan}
+            className="flex shrink-0 items-center gap-1.5 rounded-xl bg-[var(--navy)] px-3 py-2 text-sm font-medium text-[var(--on-navy)] disabled:opacity-50"
+          >
+            {mengunduh ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+            <span className="hidden sm:inline">Unduh Excel</span>
+            <span className="sm:hidden">Unduh</span>
           </button>
         </div>
-      ) : daftar.length === 0 ? (
-        <EmptyState
-          ikon={Users}
-          judul="Belum ada data nama"
-          keterangan="Tambahkan nama lewat kolom di atas. Impor dari Excel menyusul di tahap berikutnya."
-        />
-      ) : (
-        <section className={kartu}>
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] p-4">
-            <div className="relative w-full sm:max-w-xs sm:flex-1">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+      </header>
+
+      <div className="mx-auto max-w-5xl px-3 pt-3 sm:px-6">
+        {(kelebihan || galatUnduh) && (
+          <p role="alert" className="mb-3 rounded-xl bg-red-50 px-4 py-2.5 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+            {kelebihan ? `File Excel hanya mendukung sampai ${MAKS_NAMA} nama (sekarang ${daftar.length}). Hapus beberapa nama dulu.` : galatUnduh}
+          </p>
+        )}
+
+        <form onSubmit={tambah} className={`${kartu} mb-3 p-3`}>
+          <textarea
+            className={`${input} resize-y`}
+            rows={2}
+            value={baru}
+            onChange={(e) => setBaru(e.target.value)}
+            placeholder="Tambah nama — ketik satu, atau tempel banyak (satu per baris / pisah koma)"
+            aria-label="Nama baru"
+          />
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+            <select
+              value={posisi}
+              onChange={(e) => setPosisi(e.target.value)}
+              aria-label="Posisi nama baru"
+              className="rounded-xl border border-[var(--line)] bg-[var(--card)] px-2.5 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--navy)]"
+            >
+              <option value="akhir">Di akhir daftar</option>
+              <option value="nomor">Mulai di nomor…</option>
+            </select>
+            {posisi === 'nomor' && (
               <input
-                className={`${input} pl-9`}
-                value={cari}
-                onChange={(e) => setCari(e.target.value)}
-                placeholder="Cari nama"
-                aria-label="Cari nama"
+                type="number"
+                min={1}
+                max={daftar.length}
+                value={diNomor}
+                onChange={(e) => setDiNomor(e.target.value)}
+                placeholder="No."
+                aria-label="Mulai di nomor"
+                className="w-20 rounded-xl border border-[var(--line)] bg-[var(--card)] px-2.5 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--navy)]"
               />
-            </div>
-            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-              <button type="button" onClick={urungkan} disabled={riwayat.length === 0} className={aksi} title="Urungkan (Ctrl+Z)" aria-label="Urungkan">
-                <Undo2 size={14} /> <span className="hidden sm:inline">Urungkan</span>
-              </button>
-              <button type="button" onClick={ulangi} disabled={maju.length === 0} className={aksi} title="Ulangi (Ctrl+Y)" aria-label="Ulangi">
-                <Redo2 size={14} /> <span className="hidden sm:inline">Ulangi</span>
-              </button>
-              <button type="button" onClick={pilihSemuaTampil} className="px-1 text-sm text-[var(--navy)] hover:underline">
+            )}
+            <button
+              type="submit"
+              disabled={jumlahBaru === 0 || menyimpan}
+              className="ml-auto flex items-center gap-1.5 rounded-xl bg-[var(--navy)] px-4 py-2 text-sm font-medium text-[var(--on-navy)] disabled:opacity-50"
+            >
+              {menyimpan ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+              Tambah{jumlahBaru > 1 ? ` ${jumlahBaru} nama` : ''}
+            </button>
+          </div>
+        </form>
+
+        {pesan && (
+          <p role="alert" className="mb-3 rounded-xl bg-red-50 px-4 py-2.5 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
+            {pesan}
+          </p>
+        )}
+
+        {memuat ? (
+          <div className={`${kartu} flex items-center justify-center gap-2 py-14 text-sm text-[var(--muted)]`}>
+            <Loader2 size={18} className="animate-spin" /> Memuat daftar nama…
+          </div>
+        ) : gagal ? (
+          <div className={`${kartu} px-6 py-12 text-center`}>
+            <p className="text-sm text-[var(--text)]">{gagal}</p>
+            <button
+              type="button"
+              onClick={muat}
+              className="mt-3 rounded-xl border border-[var(--line)] px-4 py-2 text-sm text-[var(--text)] hover:bg-[var(--navy-soft)]"
+            >
+              Coba lagi
+            </button>
+          </div>
+        ) : daftar.length === 0 ? (
+          <EmptyState ikon={ClipboardList} judul="Belum ada data nama" keterangan="Tambahkan nama lewat kolom di atas." />
+        ) : (
+          <section className={kartu}>
+            <div className="flex items-center gap-2 border-b border-[var(--line)] p-2.5">
+              <div className="relative min-w-0 flex-1">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+                <input
+                  className={`${input} py-2 pl-9`}
+                  value={cari}
+                  onChange={(e) => setCari(e.target.value)}
+                  placeholder="Cari nama"
+                  aria-label="Cari nama"
+                />
+              </div>
+              <button type="button" onClick={pilihSemuaTampil} className="shrink-0 px-1 text-sm text-[var(--navy)] hover:underline">
                 {tampil.length > 0 && tampil.every((d) => pilih.has(d.id)) ? 'Lepas semua' : 'Pilih semua'}
               </button>
-              <span className="ml-auto text-sm text-[var(--muted)]">{daftar.length} nama</span>
             </div>
-          </div>
 
-          {pilih.size > 0 && (
-            <div className="fixed inset-x-2 bottom-2 z-20 mx-auto flex max-w-2xl flex-wrap items-center gap-x-2 gap-y-1.5 rounded-2xl border border-[var(--line)] bg-[var(--card)] px-3 py-2.5 text-sm shadow-xl">
-              <span className="mr-1 font-medium text-[var(--navy)]">{pilih.size} dipilih</span>
-              <button type="button" onClick={() => terapkanUrutan(geser(daftarRef.current, pilih, -1), true)} className={aksi}>
-                <ArrowUp size={14} /> Naik
-              </button>
-              <button type="button" onClick={() => terapkanUrutan(geser(daftarRef.current, pilih, 1), false)} className={aksi}>
-                <ArrowDown size={14} /> Turun
-              </button>
-              <form onSubmit={pindahNomor} className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min={1}
-                  max={daftar.length}
-                  value={keNomor}
-                  onChange={(e) => setKeNomor(e.target.value)}
-                  placeholder="Ke nomor"
-                  aria-label="Pindah ke nomor"
-                  className="w-24 rounded-lg border border-[var(--line)] bg-[var(--card)] px-2.5 py-1.5 text-sm text-[var(--text)] outline-none focus:border-[var(--navy)]"
-                />
-                <button type="submit" disabled={!keNomor} className={aksi}>
-                  <MoveRight size={14} /> Pindah
+            {pilih.size > 0 && (
+              <div className="fixed inset-x-2 bottom-2 z-20 mx-auto flex max-w-2xl flex-wrap items-center gap-x-2 gap-y-1.5 rounded-2xl border border-[var(--line)] bg-[var(--card)] px-3 py-2.5 text-sm shadow-xl">
+                <span className="mr-1 font-medium text-[var(--navy)]">{pilih.size} dipilih</span>
+                <button type="button" onClick={() => terapkanUrutan(geser(daftarRef.current, pilih, -1), true)} className={aksi}>
+                  <ArrowUp size={14} /> Naik
                 </button>
-              </form>
-              <button type="button" onClick={urungkan} disabled={riwayat.length === 0} className={`${aksi} ml-auto`}>
-                <Undo2 size={14} /> Urungkan
-              </button>
-              {infoStatus}
-              <button type="button" onClick={() => setPilih(new Set())} className={aksi}>
-                Batal pilih
-              </button>
-            </div>
-          )}
-
-          {tampil.length === 0 ? (
-            <p className="px-4 py-10 text-center text-sm text-[var(--muted)]">Tidak ada nama yang cocok.</p>
-          ) : (
-            <ul className="divide-y divide-[var(--line)]">
-              {tampil.map((d) => (
-                <li key={d.id} id={`nama-${d.id}`} className={'scroll-mt-24 flex items-center gap-3 px-4 py-2.5 ' + (pilih.has(d.id) ? 'bg-[var(--navy-soft)]' : '')}>
+                <button type="button" onClick={() => terapkanUrutan(geser(daftarRef.current, pilih, 1), false)} className={aksi}>
+                  <ArrowDown size={14} /> Turun
+                </button>
+                <form onSubmit={pindahNomor} className="flex items-center gap-2">
                   <input
-                    type="checkbox"
-                    checked={pilih.has(d.id)}
-                    onChange={() => alihkan(d.id)}
-                    aria-label={`Pilih ${d.nama}`}
-                    className="h-4 w-4 shrink-0 accent-[var(--navy)]"
+                    type="number"
+                    min={1}
+                    max={daftar.length}
+                    value={keNomor}
+                    onChange={(e) => setKeNomor(e.target.value)}
+                    placeholder="Ke nomor"
+                    aria-label="Pindah ke nomor"
+                    className="w-24 rounded-lg border border-[var(--line)] bg-[var(--card)] px-2.5 py-1.5 text-sm text-[var(--text)] outline-none focus:border-[var(--navy)]"
                   />
-                  <span className="w-10 shrink-0 text-sm text-[var(--muted)]">{daftar.indexOf(d) + 1}</span>
-                  {editId === d.id ? (
-                    <>
+                  <button type="submit" disabled={!keNomor} className={aksi}>
+                    <MoveRight size={14} /> Pindah
+                  </button>
+                </form>
+                <button type="button" onClick={() => setPilih(new Set())} className={`${aksi} ml-auto`}>
+                  Batal pilih
+                </button>
+              </div>
+            )}
+
+            {tampil.length === 0 ? (
+              <p className="px-4 py-10 text-center text-sm text-[var(--muted)]">Tidak ada nama yang cocok.</p>
+            ) : (
+              <ul className="grid grid-cols-2 sm:grid-cols-3">
+                {tampil.map((d) => {
+                  const no = daftar.indexOf(d) + 1
+                  return editId === d.id ? (
+                    <li key={d.id} id={`nama-${d.id}`} className="col-span-full flex items-center gap-1.5 border-b border-[var(--line)] bg-[var(--navy-soft)] px-2 py-1.5">
+                      <span className="w-8 shrink-0 text-right text-xs tabular-nums text-[var(--muted)]">{no}</span>
                       <input
-                        className={input}
+                        className={`${input} py-1.5`}
                         value={editNilai}
                         autoFocus
                         onChange={(e) => setEditNilai(e.target.value)}
@@ -420,39 +520,53 @@ export default function Nama() {
                           if (e.key === 'Enter') simpanEdit(d.id)
                           if (e.key === 'Escape') setEditId(null)
                         }}
+                        aria-label={`Ubah nama nomor ${no}`}
                       />
                       <button type="button" className={tombolIkon} onClick={() => simpanEdit(d.id)} aria-label="Simpan">
-                        <Check size={16} />
+                        <Check size={18} />
+                      </button>
+                      <button type="button" className={tombolIkon} onClick={() => hapus(d)} aria-label={`Hapus ${d.nama}`}>
+                        <Trash2 size={18} />
                       </button>
                       <button type="button" className={tombolIkon} onClick={() => setEditId(null)} aria-label="Batal">
-                        <X size={16} />
+                        <X size={18} />
                       </button>
-                    </>
+                    </li>
                   ) : (
-                    <>
-                      <span className="min-w-0 flex-1 truncate text-sm text-[var(--text)]">{d.nama}</span>
+                    <li
+                      key={d.id}
+                      id={`nama-${d.id}`}
+                      className={'scroll-mt-16 flex items-center border-b border-[var(--line)] ' + (pilih.has(d.id) ? 'bg-[var(--navy-soft)]' : '')}
+                    >
+                      <label className="flex shrink-0 cursor-pointer items-center gap-1 py-1.5 pl-2 pr-1" title="Pilih untuk digeser">
+                        <input
+                          type="checkbox"
+                          checked={pilih.has(d.id)}
+                          onChange={() => alihkan(d.id)}
+                          aria-label={`Pilih ${d.nama}`}
+                          className="h-4 w-4 shrink-0 accent-[var(--navy)]"
+                        />
+                        <span className="w-7 text-right text-xs tabular-nums text-[var(--muted)]">{no}</span>
+                      </label>
                       <button
                         type="button"
-                        className={tombolIkon}
                         onClick={() => {
                           setEditId(d.id)
                           setEditNilai(d.nama)
                         }}
-                        aria-label={`Ubah ${d.nama}`}
+                        className="min-w-0 flex-1 truncate py-1.5 pl-1 pr-2 text-left text-[13px] text-[var(--text)] hover:underline"
+                        title="Ketuk untuk ubah atau hapus"
                       >
-                        <Pencil size={16} />
+                        {d.nama}
                       </button>
-                      <button type="button" className={tombolIkon} onClick={() => hapus(d)} aria-label={`Hapus ${d.nama}`}>
-                        <Trash2 size={16} />
-                      </button>
-                    </>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </section>
+        )}
+      </div>
     </div>
   )
 }
