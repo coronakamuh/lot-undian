@@ -34,8 +34,8 @@ function buatSumber(xml, daftar) {
 // Di sini hanya nilai tersimpan nama yang diisi, dan tinggi baris diseragamkan.
 const LOT_PER_BARIS = 6
 const LOT_BARIS_MAKS = 70 // 35 pasang baris = 210 kotak
-// Satu lot (nomor + nama) = 3 cm: 16,59 pt (0,59 cm) + 68,45 pt (2,41 cm) = 85,04 pt.
-const TINGGI_NOMOR = '16.59'
+// Satu lot (nomor + nama) = 3 cm: 16,5 pt + 68,45 pt = 84,95 pt (sesuai file acuan).
+const TINGGI_NOMOR = '16.5'
 const TINGGI_NAMA = '68.45'
 // Pemisah halaman manual tiap 12 baris (6 lot): nomor dan nama satu lot tidak pernah terpisah antar halaman.
 const LOT_BARIS_PER_HALAMAN = 12
