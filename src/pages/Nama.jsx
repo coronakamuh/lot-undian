@@ -322,6 +322,25 @@ export default function Nama({ tema, setTema }) {
     }
   }
 
+  const hapusTerpilih = async () => {
+    const ids = daftarRef.current.filter((d) => pilih.has(d.id)).map((d) => d.id)
+    if (ids.length === 0) return
+    if (!window.confirm(`Hapus ${ids.length} nama terpilih?`)) return
+    setPesan('')
+    try {
+      await hapusBanyak(ids)
+      catat()
+      const hapusSet = new Set(ids)
+      serverRef.current = serverRef.current.filter((x) => !hapusSet.has(x.id))
+      setLokal(beriUrutan(daftarRef.current.filter((x) => !hapusSet.has(x.id))))
+      setPilih(new Set())
+      setEditId(null)
+      jadwalkanSimpan()
+    } catch (err) {
+      setPesan(pesanError(err))
+    }
+  }
+
   const infoStatus =
     status === 'menyimpan' ? (
       <span className="flex items-center gap-1 text-xs text-[var(--muted)]">
@@ -496,7 +515,14 @@ export default function Nama({ tema, setTema }) {
                     <MoveRight size={14} /> Pindah
                   </button>
                 </form>
-                <button type="button" onClick={() => setPilih(new Set())} className={`${aksi} ml-auto`}>
+                <button
+                  type="button"
+                  onClick={hapusTerpilih}
+                  className={`${aksi} ml-auto text-red-600 dark:text-red-400`}
+                >
+                  <Trash2 size={14} /> Hapus
+                </button>
+                <button type="button" onClick={() => setPilih(new Set())} className={aksi}>
                   Batal pilih
                 </button>
               </div>
