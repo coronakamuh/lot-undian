@@ -1,11 +1,12 @@
 import JSZip from 'jszip'
+import { proper } from './proper.js'
 
 // Template = file Excel asli Anda (sheet LOT, SUMBER, INDEX, INDEX (2), print folio, Laporan Kas) tanpa isi nama.
 // Hanya data yang diganti; gaya, ukuran sel, border, dan pengaturan cetak dibiarkan persis seperti aslinya.
 
 export const MAKS_NAMA = 200 // INDEX baris 3-202 = 200 nama, print folio 200 (LOT: 210 kotak)
-// INDEX diisi sampai dasar halaman Legal terakhir (4 halaman: 55 + 3x59 = 232 baris data, baris 3-234)
-const INDEX_BARIS_AKHIR = 234
+// INDEX: 228 nomor (baris 3-230), hampir memenuhi 4 halaman Legal
+const INDEX_BARIS_AKHIR = 230
 const KOLOM_NAMA_INDEX = ['B', 'U', 'AN', 'BG', 'BZ', 'CS']
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -70,19 +71,29 @@ function buatLot(xml, daftar) {
   return sisipkanPemisahHalaman(terisi)
 }
 
-// ---- INDEX dan INDEX (2): nama = SUMBER!A{baris-2} (huruf kapital apa adanya) di 6 blok -------------------
+// ---- INDEX dan INDEX (2): nama = PROPER(SUMBER!A{baris-2}) di 6 blok -------------------
 function buatIndex(xml, daftar) {
   const pola = new RegExp(`<c r="(${KOLOM_NAMA_INDEX.join('|')})(\\d+)"([^>]*)>(?:(?!</c>)[\\s\\S])*</c>`, 'g')
   return xml.replace(pola, (utuh, kol, noStr, atribut) => {
     const r = Number(noStr)
     if (r < 3 || r > INDEX_BARIS_AKHIR) return utuh
     const gaya = (atribut.match(/\ss="(\d+)"/) || [])[1]
-    return sel(`${kol}${r}`, gaya, `SUMBER!A${r - 2}&""`, daftar[r - 3] || '')
+    return sel(`${kol}${r}`, gaya, `PROPER(SUMBER!A${r - 2})`, proper(daftar[r - 3] || ''))
   })
 }
 
 // ---- print folio: daftar iuran, 4 blok x 50 baris (200 nomor) (nomor tetap, nama kapital dari SUMBER) ---
 const KOLOM_LEMBARAN = { B: 'A', E: 'D', H: 'G', K: 'J' } // kolom nama -> kolom nomor
+
+// Lebar huruf kapital (per 1000 em, mirip Arial) x 0,85 untuk font Aptos Narrow 12 pt (16 px).
+const LEBAR_HURUF = {A:667,B:667,C:722,D:722,E:667,F:611,G:778,H:722,I:278,J:500,K:667,L:556,M:833,N:722,O:778,P:667,Q:778,R:722,S:667,T:611,U:722,V:667,W:944,X:667,Y:667,Z:611,' ':278,'.':278,"'":191,'-':333}
+const BATAS_LEBAR_PX = 100 // kolom nama 15,14 karakter (~111 px) dikurangi spasi dan tepi
+const GAYA_FONT_11 = { 91: 97, 92: 98, 93: 99, 94: 100, 95: 101 } // gaya nama -> gaya yang sama dengan font 11
+
+function terlaluLebar(nama) {
+  const px = [...nama.toUpperCase()].reduce((j, c) => j + (LEBAR_HURUF[c] ?? 600), 0) * 0.85 * 0.016
+  return px > BATAS_LEBAR_PX
+}
 
 function buatLembaran(xml, daftar) {
   const nomor = new Map()
@@ -97,7 +108,12 @@ function buatLembaran(xml, daftar) {
       const no = nomor.get(`${KOLOM_LEMBARAN[kol]}${r}`)
       const formula = (isi.match(/<f[\s\S]*?(?:<\/f>|\/>)/) || [''])[0]
       if (!formula || !no) return utuh
-      return `<c r="${kol}${r}"${atribut}>${formula}<v>${esc(daftar[no - 1] || '')}</v></c>`
+      const nama = daftar[no - 1] || ''
+      let atr = atribut
+      if (terlaluLebar(nama)) {
+        atr = atr.replace(/\ss="(\d+)"/, (m, s) => (GAYA_FONT_11[s] ? ` s="${GAYA_FONT_11[s]}"` : m))
+      }
+      return `<c r="${kol}${r}"${atr}>${formula}<v>${esc(nama)}</v></c>`
     },
   )
 }
