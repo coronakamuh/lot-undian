@@ -6,7 +6,7 @@ import { ambilNama, pesanError } from '../lib/namaApi.js'
 import { unduhExcel, MAKS_NAMA } from '../lib/excelExport.js'
 
 const SHEET = [
-  ['LOT', 'kotak nomor dan nama untuk dipotong dan diundi'],
+  ['LOT', 'kotak nama (6 per baris, 216 kotak) untuk dipotong dan diundi'],
   ['SUMBER', 'daftar induk nama'],
   ['INDEX', 'buku index 1 (nomor 1–102)'],
   ['INDEX (2)', 'buku index 2 (nomor 103–204)'],

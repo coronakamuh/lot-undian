@@ -29,21 +29,17 @@ function buatSumber(xml, daftar) {
     .replace(/<sheetData\s*\/>|<sheetData>[\s\S]*?<\/sheetData>/, `<sheetData>${baris}</sheetData>`)
 }
 
-// ---- LOT: 6 kotak per baris; baris ganjil = nomor ("1."), baris genap = nama --------------
-// Rumus di template sudah benar (nomor selalu tampil, nama diambil dari SUMBER, satu kata per baris).
-// Di sini hanya nilai tersimpan nama yang diisi, dan tinggi baris diseragamkan.
+// ---- LOT: 6 kotak per baris, satu sel nama per lot (tanpa sel nomor), tinggi 3 cm ----------
+// Rumus di template: INDEX(SUMBER!$A:$A,(ROW()-1)*6+COLUMN()), satu kata per baris.
+// Di sini nilai tersimpan nama diisi dan tinggi baris dipastikan 3 cm.
 const LOT_PER_BARIS = 6
-const LOT_BARIS_MAKS = 72 // 36 pasang baris = 216 kotak (6 halaman penuh, kotak kosong ikut tercetak)
-// Satu lot (nomor + nama) = 3 cm: 16,5 pt + 68,45 pt = 84,95 pt (sesuai file acuan).
-const TINGGI_NOMOR = '16.5'
-const TINGGI_NAMA = '68.45'
-// Pemisah halaman manual tiap 12 baris (6 lot): nomor dan nama satu lot tidak pernah terpisah antar halaman.
-const LOT_BARIS_PER_HALAMAN = 12
+const LOT_BARIS_MAKS = 36 // 36 baris x 6 = 216 kotak (6 halaman penuh, kotak kosong ikut tercetak)
+const TINGGI_LOT = '85.05' // 3 cm
+const LOT_BARIS_PER_HALAMAN = 6 // 6 baris lot per halaman A4 landscape
 
 function sisipkanPemisahHalaman(xml) {
-  const barisCetak = LOT_BARIS_MAKS
   const brk = []
-  for (let r = LOT_BARIS_PER_HALAMAN; r < barisCetak; r += LOT_BARIS_PER_HALAMAN) {
+  for (let r = LOT_BARIS_PER_HALAMAN; r < LOT_BARIS_MAKS; r += LOT_BARIS_PER_HALAMAN) {
     brk.push(`<brk id="${r}" max="16383" man="1"/>`)
   }
   const bersih = xml.replace(/<rowBreaks[\s\S]*?<\/rowBreaks>/, '')
@@ -56,18 +52,15 @@ function buatLot(xml, daftar) {
   const barisSeragam = xml.replace(/<row r="(\d+)"([^>]*?)(\/?>)/g, (utuh, noStr, atribut, tutup) => {
     const r = Number(noStr)
     if (r > LOT_BARIS_MAKS) return utuh
-    const tinggi = r % 2 === 1 ? TINGGI_NOMOR : TINGGI_NAMA
-    const atrib = atribut
-      .replace(/\s+ht="[^"]*"/, '')
-      .replace(/\s+customHeight="[^"]*"/, '')
-    return `<row r="${r}"${atrib} ht="${tinggi}" customHeight="1"${tutup}`
+    const atrib = atribut.replace(/\s+ht="[^"]*"/, '').replace(/\s+customHeight="[^"]*"/, '')
+    return `<row r="${r}"${atrib} ht="${TINGGI_LOT}" customHeight="1"${tutup}`
   })
   const terisi = barisSeragam.replace(
     /<c r="([A-F])(\d+)"([^>/]*)>((?:(?!<\/c>)[\s\S])*)<\/c>/g,
     (utuh, kol, noStr, atribut, isi) => {
       const r = Number(noStr)
-      if (r > LOT_BARIS_MAKS || r % 2 === 1) return utuh
-      const slot = (r / 2 - 1) * LOT_PER_BARIS + (kol.charCodeAt(0) - 64)
+      if (r > LOT_BARIS_MAKS) return utuh
+      const slot = (r - 1) * LOT_PER_BARIS + (kol.charCodeAt(0) - 64)
       const nama = (daftar[slot - 1] || '').replace(/\s+/g, '\n')
       const formula = (isi.match(/<f[\s\S]*?(?:<\/f>|\/>)/) || [''])[0]
       return `<c r="${kol}${r}"${atribut}>${formula}<v>${esc(nama)}</v></c>`
