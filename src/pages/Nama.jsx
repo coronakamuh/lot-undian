@@ -26,6 +26,7 @@ export default function Nama({ tema, setTema }) {
   const [posisi, setPosisi] = useState('akhir') // 'akhir' | 'nomor'
   const [diNomor, setDiNomor] = useState('')
   const [mengunduh, setMengunduh] = useState(false)
+  const [konfirmasi, setKonfirmasi] = useState(null) // { judul, isi, jalankan }
   const [galatUnduh, setGalatUnduh] = useState('')
   const [menyimpan, setMenyimpan] = useState(false)
   const [cari, setCari] = useState('')
@@ -267,6 +268,7 @@ export default function Nama({ tema, setTema }) {
     const onKey = (e) => {
       const el = e.target
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')) return
+      if (e.key === 'Escape') setKonfirmasi(null)
       if (!(e.ctrlKey || e.metaKey)) return
       const k = e.key.toLowerCase()
       if (k === 'z' && !e.shiftKey) {
@@ -304,8 +306,10 @@ export default function Nama({ tema, setTema }) {
     setKeNomor('')
   }
 
-  const hapus = async (item) => {
-    if (!window.confirm(`Hapus nama "${item.nama}"?`)) return
+  const hapus = (item) =>
+    setKonfirmasi({ judul: 'Hapus nama?', isi: `"${item.nama}" akan dihapus dari daftar.`, jalankan: () => prosesHapus(item) })
+
+  const prosesHapus = async (item) => {
     setPesan('')
     try {
       await hapusNama(item.id)
@@ -322,10 +326,13 @@ export default function Nama({ tema, setTema }) {
     }
   }
 
-  const hapusTerpilih = async () => {
+  const hapusTerpilih = () => {
     const ids = daftarRef.current.filter((d) => pilih.has(d.id)).map((d) => d.id)
     if (ids.length === 0) return
-    if (!window.confirm(`Hapus ${ids.length} nama terpilih?`)) return
+    setKonfirmasi({ judul: `Hapus ${ids.length} nama?`, isi: 'Semua nama yang dipilih akan dihapus dari daftar.', jalankan: () => prosesHapusBanyak(ids) })
+  }
+
+  const prosesHapusBanyak = async (ids) => {
     setPesan('')
     try {
       await hapusBanyak(ids)
@@ -600,6 +607,32 @@ export default function Nama({ tema, setTema }) {
           </section>
         )}
       </div>
+
+      {konfirmasi && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label={konfirmasi.judul}>
+          <div className="absolute inset-0 bg-black/40" onClick={() => setKonfirmasi(null)} />
+          <div className="relative w-full max-w-sm rounded-2xl border border-[var(--line)] bg-[var(--card)] p-5 shadow-xl">
+            <h2 className="text-base font-semibold text-[var(--text)]">{konfirmasi.judul}</h2>
+            <p className="mt-1.5 text-sm text-[var(--muted)]">{konfirmasi.isi}</p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" autoFocus onClick={() => setKonfirmasi(null)} className={aksi}>
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const f = konfirmasi.jalankan
+                  setKonfirmasi(null)
+                  f()
+                }}
+                className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
+              >
+                Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
