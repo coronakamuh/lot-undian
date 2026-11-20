@@ -505,32 +505,39 @@ export default function Nama({ tema, setTema }) {
             {tampil.length === 0 ? (
               <p className="px-4 py-10 text-center text-sm text-[var(--muted)]">Tidak ada nama yang cocok.</p>
             ) : (
-              <ul className="grid grid-cols-2 sm:grid-cols-3">
+              <ul
+                className="grid grid-flow-col grid-cols-2 [grid-template-rows:repeat(var(--b2),auto)] sm:grid-cols-3 sm:[grid-template-rows:repeat(var(--b3),auto)]"
+                style={{ '--b2': Math.ceil(tampil.length / 2), '--b3': Math.ceil(tampil.length / 3) }}
+              >
                 {tampil.map((d) => {
                   const no = daftar.indexOf(d) + 1
                   return editId === d.id ? (
-                    <li key={d.id} id={`nama-${d.id}`} className="col-span-full flex items-center gap-1.5 border-b border-[var(--line)] bg-[var(--navy-soft)] px-2 py-1.5">
-                      <span className="w-8 shrink-0 text-right text-xs tabular-nums text-[var(--muted)]">{no}</span>
-                      <input
-                        className={`${input} py-1.5`}
-                        value={editNilai}
-                        autoFocus
-                        onChange={(e) => setEditNilai(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') simpanEdit(d.id)
-                          if (e.key === 'Escape') setEditId(null)
-                        }}
-                        aria-label={`Ubah nama nomor ${no}`}
-                      />
-                      <button type="button" className={tombolIkon} onClick={() => simpanEdit(d.id)} aria-label="Simpan">
-                        <Check size={18} />
-                      </button>
-                      <button type="button" className={tombolIkon} onClick={() => hapus(d)} aria-label={`Hapus ${d.nama}`}>
-                        <Trash2 size={18} />
-                      </button>
-                      <button type="button" className={tombolIkon} onClick={() => setEditId(null)} aria-label="Batal">
-                        <X size={18} />
-                      </button>
+                    <li key={d.id} id={`nama-${d.id}`} className="border-b border-[var(--line)] bg-[var(--navy-soft)] px-2 py-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-7 shrink-0 text-right text-xs tabular-nums text-[var(--muted)]">{no}</span>
+                        <input
+                          className={`${input} min-w-0 py-1.5`}
+                          value={editNilai}
+                          autoFocus
+                          onChange={(e) => setEditNilai(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') simpanEdit(d.id)
+                            if (e.key === 'Escape') setEditId(null)
+                          }}
+                          aria-label={`Ubah nama nomor ${no}`}
+                        />
+                      </div>
+                      <div className="mt-1 flex justify-end gap-1">
+                        <button type="button" className={tombolIkon} onClick={() => simpanEdit(d.id)} aria-label="Simpan">
+                          <Check size={18} />
+                        </button>
+                        <button type="button" className={tombolIkon} onClick={() => hapus(d)} aria-label={`Hapus ${d.nama}`}>
+                          <Trash2 size={18} />
+                        </button>
+                        <button type="button" className={tombolIkon} onClick={() => setEditId(null)} aria-label="Batal">
+                          <X size={18} />
+                        </button>
+                      </div>
                     </li>
                   ) : (
                     <li
