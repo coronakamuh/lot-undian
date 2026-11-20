@@ -33,15 +33,15 @@ function buatSumber(xml, daftar) {
 // Rumus di template sudah benar (nomor selalu tampil, nama diambil dari SUMBER, satu kata per baris).
 // Di sini hanya nilai tersimpan nama yang diisi, dan tinggi baris diseragamkan.
 const LOT_PER_BARIS = 6
-const LOT_BARIS_MAKS = 70 // 35 pasang baris = 210 kotak
+const LOT_BARIS_MAKS = 72 // 36 pasang baris = 216 kotak (6 halaman penuh, kotak kosong ikut tercetak)
 // Satu lot (nomor + nama) = 3 cm: 16,5 pt + 68,45 pt = 84,95 pt (sesuai file acuan).
 const TINGGI_NOMOR = '16.5'
 const TINGGI_NAMA = '68.45'
 // Pemisah halaman manual tiap 12 baris (6 lot): nomor dan nama satu lot tidak pernah terpisah antar halaman.
 const LOT_BARIS_PER_HALAMAN = 12
 
-function sisipkanPemisahHalaman(xml, jumlah) {
-  const barisCetak = Math.max(2, Math.min(LOT_BARIS_MAKS, Math.ceil(jumlah / LOT_PER_BARIS) * 2))
+function sisipkanPemisahHalaman(xml) {
+  const barisCetak = LOT_BARIS_MAKS
   const brk = []
   for (let r = LOT_BARIS_PER_HALAMAN; r < barisCetak; r += LOT_BARIS_PER_HALAMAN) {
     brk.push(`<brk id="${r}" max="16383" man="1"/>`)
@@ -73,7 +73,7 @@ function buatLot(xml, daftar) {
       return `<c r="${kol}${r}"${atribut}>${formula}<v>${esc(nama)}</v></c>`
     },
   )
-  return sisipkanPemisahHalaman(terisi, daftar.length)
+  return sisipkanPemisahHalaman(terisi)
 }
 
 // ---- INDEX dan INDEX (2): nama = PROPER(SUMBER!A{baris-2}) di 6 blok -------------------
@@ -109,11 +109,11 @@ function buatLembaran(xml, daftar) {
 }
 
 // ---- Bagian lain: hitung ulang, hapus calcChain, area cetak LOT, bersihkan teks lama ----
-function rapikanWorkbook(xml, jumlah) {
+function rapikanWorkbook(xml) {
   let out = xml.replace(/<calcPr([^>]*?)\s*\/>/, (m, a) =>
     /fullCalcOnLoad/.test(a) ? m : `<calcPr${a} fullCalcOnLoad="1"/>`,
   )
-  const barisCetak = Math.max(2, Math.min(70, Math.ceil(jumlah / 6) * 2))
+  const barisCetak = LOT_BARIS_MAKS
   const area = `<definedName name="_xlnm.Print_Area" localSheetId="0">LOT!$A$1:$F$${barisCetak}</definedName>`
   out = out.replace(/<definedNames>[\s\S]*?<\/definedNames>/, '')
   out = out.replace(/<\/sheets>/, `</sheets><definedNames>${area}</definedNames>`)
@@ -155,7 +155,7 @@ export async function buatXlsx(templateBytes, daftarMentah) {
   zip.file('xl/worksheets/sheet4.xml', index2)
   zip.file('xl/worksheets/sheet5.xml', lembaran)
 
-  zip.file('xl/workbook.xml', rapikanWorkbook(await baca('xl/workbook.xml'), daftar.length))
+  zip.file('xl/workbook.xml', rapikanWorkbook(await baca('xl/workbook.xml')))
 
   if (zip.file('xl/sharedStrings.xml')) {
     zip.file(
